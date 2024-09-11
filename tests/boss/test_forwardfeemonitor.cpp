@@ -103,7 +103,7 @@ int main() {
 
 		/* Give the peers.  */
 		return bus.raise(Boss::Msg::ListpeersResult{
-			parse_json(listpeers_result)["peers"], true
+				Boss::Mod::convert_legacy_listpeers(parse_json(listpeers_result)["peers"]), true
 		});
 	}).then([&]() {
 
@@ -131,7 +131,6 @@ int main() {
     "in_msat": "100001001msat",
     "out_msatoshi": 100000000,
     "out_msat": "100000000msat",
-    "fee": 1001,
     "fee_msat": "1001msat",
     "status": "settled",
     "received_time": 1560696342.368,

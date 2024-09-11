@@ -29,7 +29,7 @@ void ForwardFeeMonitor::start() {
 		try {
 			auto payload = n.params["forward_event"];
 			if ( !payload.has("out_channel")
-			  || !payload.has("fee")
+			  || !payload.has("fee_msat")
 			  || !payload.has("resolved_time")
 			  || !payload.has("received_time")
 			   )
@@ -50,11 +50,12 @@ void ForwardFeeMonitor::start() {
 					- double(payload["received_time"])
 					;
 
-		} catch (std::runtime_error const& _) {
+		} catch (std::runtime_error const& err) {
 			return Boss::log( bus, Error
 					, "ForwardFeeMonitor: Unexpected "
-					  "forward_event payload: %s"
+					  "forward_event payload: %s: %s"
 					, Util::stringify(n.params).c_str()
+					, err.what()
 					);
 		}
 

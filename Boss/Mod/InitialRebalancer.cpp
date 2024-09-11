@@ -76,7 +76,7 @@ private:
 			 */
 			if (m.initial)
 				return Ev::lift();
-			return run(m.peers);
+			return run(m.cpeers);
 		});
 	}
 
@@ -92,7 +92,7 @@ private:
 		~Run() =default;
 
 		explicit
-		Run( S::Bus& bus, Jsmn::Object const& peers
+		Run( S::Bus& bus, Boss::Mod::ConstructedListpeers const& peers
 		   , MoveRR& move_rr, ExpenseRR& expense_rr
 		   , std::set<Ln::NodeId>& current_sources
 		   , std::set<Ln::NodeId> const& unmanaged
@@ -101,8 +101,8 @@ private:
 	};
 
 	Ev::Io<void>
-	run(Jsmn::Object const& peers) {
-		auto ppeers = std::make_shared<Jsmn::Object>(peers);
+	run(Boss::Mod::ConstructedListpeers const& peers) {
+		auto ppeers = std::make_shared<Boss::Mod::ConstructedListpeers>(peers);
 		return Ev::lift().then([this]() {
 			return unmanager.get_unmanaged();
 		}).then([ this
@@ -137,7 +137,7 @@ class InitialRebalancer::Impl::Run::Impl
 		: public std::enable_shared_from_this<Impl> {
 private:
 	S::Bus& bus;
-	Jsmn::Object peers;
+	Boss::Mod::ConstructedListpeers peers;
 
 	/* Data about a peer.  */
 	struct Info {
@@ -174,13 +174,11 @@ private:
 					auto receivable = Ln::Amount::sat(0);
 					auto total = Ln::Amount::sat(0);
 
-					auto id = Ln::NodeId(std::string(
-						p["id"]
-					));
+                                        auto id = p.first;
 					if (unmanaged.count(id) != 0)
 						continue;
 
-					auto cs = p["channels"];
+					auto cs = p.second.channels;
 					for (auto c : cs) {
 						auto state = std::string(
 							c["state"]
@@ -200,13 +198,13 @@ private:
 					info[id].receivable = receivable;
 					info[id].total = total;
 				}
-			} catch (std::exception const& _) {
+			} catch (std::exception const& e) {
 				return Boss::log( bus, Error
-						, "InitialRebalancer: "
-						  "Unexpected result from "
-						  "listpeers: %s"
-						, Util::stringify(peers)
-							.c_str()
+						  , "InitialRebalancer:"
+						  " Unexpected exception: %s "
+						  " handling: %s"
+						  , e.what()
+						  , Util::stringify(peers).c_str()
 						);
 			}
 			return plan_move();
@@ -468,7 +466,7 @@ private:
 
 public:
 	Impl( S::Bus& bus_
-	    , Jsmn::Object const& peers_
+	    , Boss::Mod::ConstructedListpeers const& peers_
 	    , MoveRR& move_rr_
 	    , ExpenseRR& expense_rr_
 	    , std::set<Ln::NodeId>& current_sources_
@@ -491,7 +489,7 @@ public:
 };
 
 InitialRebalancer::Impl::Run::Run( S::Bus& bus
-				 , Jsmn::Object const& peers
+				 , Boss::Mod::ConstructedListpeers const& peers
 				 , MoveRR& move_rr, ExpenseRR& expense_rr
 				 , std::set<Ln::NodeId>& current_sources
 				 , std::set<Ln::NodeId> const& unmanaged

@@ -139,6 +139,8 @@ libclboss_la_SOURCES = \
 	Boss/Mod/ConnectFinderByHardcode.hpp \
 	Boss/Mod/Connector.cpp \
 	Boss/Mod/Connector.hpp \
+	Boss/Mod/ConstructedListpeers.cpp \
+	Boss/Mod/ConstructedListpeers.hpp \
 	Boss/Mod/Dowser.cpp \
 	Boss/Mod/Dowser.hpp \
 	Boss/Mod/EarningsRebalancer.cpp \
@@ -514,6 +516,7 @@ libclboss_la_SOURCES = \
 	Stats/RunningMean.cpp \
 	Stats/RunningMean.hpp \
 	Stats/WeightedMedian.hpp \
+	Util/BacktraceException.hpp \
 	Util/Bech32.cpp \
 	Util/Bech32.hpp \
 	Util/Compiler.hpp \
@@ -530,6 +533,7 @@ libclboss_la_SOURCES = \
 	Util/format.hpp \
 	Util/make_unique.hpp \
 	Util/stringify.hpp \
+	Util/stream_elements.hpp \
 	Util/vector_emplace_back.hpp \
 	Uuid.cpp \
 	Uuid.hpp
@@ -563,7 +567,9 @@ EXTRA_DIST = \
 	reproducible/README.md \
 	reproducible/build.sh \
 	reproducible/continue.sh \
-	reproducible/manifest.scm.template 
+	reproducible/manifest.scm.template \
+    generate_commit_hash.sh \
+    commit_hash.h
 
 AM_CXXFLAGS = -Wall -Werror $(PTHREAD_CFLAGS) $(libev_CFLAGS) $(SQLITE3_CFLAGS) $(CURL_CFLAGS) $(CLBOSS_CXXFLAGS)
 LDADD = libclboss.la $(PTHREAD_LIBS) $(libev_LIBS) $(SQLITE3_LIBS) $(CURL_LIBS)
@@ -665,3 +671,23 @@ CLEANFILES = $(noinst_SCRIPTS)
 create-tarball: create-tarball.in Makefile
 	sed -e 's/[@]PACKAGE_VERSION[@]/$(PACKAGE_VERSION)/' < $(srcdir)/create-tarball.in > create-tarball
 	chmod +x create-tarball
+
+BUILT_SOURCES = commit_hash.h
+
+commit_hash.h: FORCE
+	@if test -e $(srcdir)/.git/logs/HEAD; then \
+		if [ ! -f $@ ] || [ $(srcdir)/.git/logs/HEAD -nt $@ ]; then \
+			echo "Regenerating commit_hash.h..."; \
+			$(SHELL) $(srcdir)/generate_commit_hash.sh; \
+		else \
+			echo "commit_hash.h is up-to-date."; \
+		fi \
+	else \
+		echo "Using existing commit_hash.h"; \
+	fi
+
+FORCE:
+
+.PHONY: FORCE
+
+clboss libclboss.la: $(BUILT_SOURCES)
