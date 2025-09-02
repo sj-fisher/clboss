@@ -3,7 +3,7 @@
 ```mermaid
    %%{init: {"flowchart": {"defaultRenderer": "elk"}} }%%
 
-   flowchart TB
+   flowchart LR
 
    style InitialRebalancer fill:#9fb,stroke:#333,stroke-width:4px
    ListpeersAnnouncer-->|ListpeersResult|InitialRebalancer
@@ -16,6 +16,8 @@
    ListpeersAnnouncer-->|ListpeersResult|EarningsRebalancer
    Manifester-->|Manifestation|EarningsRebalancer
    CommandReceiver-->|CommandRequest|EarningsRebalancer
+   EarningsTracker-->|ResponseEarningsInfo|EarningsRebalancer
+   EarningsRebalancer-->|RequestEarningsInfo|EarningsTracker
    EarningsRebalancer-->|ManifestCommand|Manifester
    EarningsRebalancer-->|CommandResponse|CommandReceiver
 

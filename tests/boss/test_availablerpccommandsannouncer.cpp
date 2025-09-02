@@ -25,6 +25,15 @@ auto const help = std::string(R"JSON(
   , { "command": "clboss-unmanage nodeid tags"
     , "category": "plugin"
     }
+  , { "command": "clboss-feerates"
+    , "category": "plugin"
+    }
+  , { "command": "clboss-recent-earnings [days]"
+    , "category": "plugin"
+    }
+  , { "command": "clboss-earnings-history [nodeid]"
+    , "category": "plugin"
+    }
   ]
 }
 )JSON");
@@ -69,10 +78,16 @@ int main() {
 		auto commands = m.commands;
 		assert(commands.count("clboss-status") != 0);
 		assert(commands.count("clboss-ignore-onchain") != 0);
-		assert(commands.count("clboss-unmanage") != 0);
-		assert(commands["clboss-status"].usage == "");
-		assert(commands["clboss-ignore-onchain"].usage == "[hours]");
-		assert(commands["clboss-unmanage"].usage == "nodeid tags");
+                assert(commands.count("clboss-unmanage") != 0);
+                assert(commands.count("clboss-feerates") != 0);
+                assert(commands["clboss-status"].usage == "");
+                assert(commands["clboss-ignore-onchain"].usage == "[hours]");
+                assert(commands["clboss-unmanage"].usage == "nodeid tags");
+                assert(commands["clboss-feerates"].usage == "");
+                assert(commands.count("clboss-recent-earnings") != 0);
+		assert(commands["clboss-recent-earnings"].usage == "[days]");
+		assert(commands.count("clboss-earnings-history") != 0);
+		assert(commands["clboss-earnings-history"].usage == "[nodeid]");
 
 		return Ev::lift();
 	});

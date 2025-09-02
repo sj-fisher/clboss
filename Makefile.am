@@ -574,6 +574,11 @@ EXTRA_DIST = \
 AM_CXXFLAGS = -Wall -Werror $(PTHREAD_CFLAGS) $(libev_CFLAGS) $(SQLITE3_CFLAGS) $(CURL_CFLAGS) $(CLBOSS_CXXFLAGS)
 LDADD = libclboss.la $(PTHREAD_LIBS) $(libev_LIBS) $(SQLITE3_LIBS) $(CURL_LIBS)
 
+if ENABLE_EXCEPTION_BACKTRACE
+AM_CXXFLAGS += -DENABLE_EXCEPTION_BACKTRACE $(LIBUNWIND_CFLAGS)
+LDADD +=  $(LIBUNWIND_LIBS)
+endif
+
 ACLOCAL_AMFLAGS = -I m4
 
 AM_DEFAULT_SOURCE_EXT = .cpp
@@ -591,6 +596,7 @@ TESTS = \
 	tests/boss/test_channelcreator_rearrangerbysize \
 	tests/boss/test_channelcreator_reprioritizer \
 	tests/boss/test_earningsrebalancer \
+	tests/boss/test_earningstracker \
 	tests/boss/test_feemodderbypricetheory \
 	tests/boss/test_forwardfeemonitor \
 	tests/boss/test_getmanifest \
@@ -599,6 +605,8 @@ TESTS = \
 	tests/boss/test_needsconnectsolicitor \
 	tests/boss/test_onchainfeemonitor_samples_init \
 	tests/boss/test_peerjudge_agetracker \
+	tests/boss/test_recentearnings \
+	tests/boss/test_earningshistory \
 	tests/boss/test_peerjudge_algo \
 	tests/boss/test_peerjudge_datagatherer \
 	tests/boss/test_peerstatistician \
@@ -622,6 +630,7 @@ TESTS = \
 	tests/ev/test_semaphore \
 	tests/ev/test_throw_in_then \
 	tests/graph/test_dijkstra \
+	tests/jsmn/test_equality \
 	tests/jsmn/test_iterator \
 	tests/jsmn/test_parser \
 	tests/jsmn/test_performance \
@@ -675,16 +684,30 @@ create-tarball: create-tarball.in Makefile
 BUILT_SOURCES = commit_hash.h
 
 commit_hash.h: FORCE
-	@if test -e $(srcdir)/.git/logs/HEAD; then \
-		if [ ! -f $@ ] || [ $(srcdir)/.git/logs/HEAD -nt $@ ]; then \
-			echo "Regenerating commit_hash.h..."; \
+	@if git -C $(srcdir) rev-parse --is-inside-work-tree > /dev/null 2>&1; then \
+		CURRENT_HASH="$$(git -C $(srcdir) rev-parse HEAD)"; \
+		if [ ! -f $(srcdir)/commit_hash.h ] || \
+		   [ "$$(grep -oE '[0-9a-f]{40}' $(srcdir)/commit_hash.h)" != "$$CURRENT_HASH" ]; then \
+			echo "Regenerating $(srcdir)/commit_hash.h..."; \
 			$(SHELL) $(srcdir)/generate_commit_hash.sh; \
 		else \
-			echo "commit_hash.h is up-to-date."; \
+			echo "$(srcdir)/commit_hash.h is up-to-date."; \
 		fi \
 	else \
-		echo "Using existing commit_hash.h"; \
+		if [ ! -f $(srcdir)/commit_hash.h ]; then \
+			echo "Error: commit_hash.h is missing.!!!"; \
+			echo "Maybe you need the other release tarball?"; \
+			echo "(the one named \"Source code\" is **NOT** the one you want ...)"; \
+			exit 1; \
+		else \
+			echo "Using existing $(srcdir)/commit_hash.h"; \
+		fi \
 	fi
+
+# Ensure that commit_hash.h is included in the source tarball.
+dist-hook:
+	test -f $(srcdir)/commit_hash.h || $(MAKE) commit_hash.h
+	test -f $(distdir)/commit_hash.h || cp $(srcdir)/commit_hash.h $(distdir)/
 
 FORCE:
 

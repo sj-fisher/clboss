@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([clboss], [0.13.3], [ken@bonsai.com])
+AC_INIT([clboss], [0.14.1], [ken@bonsai.com])
 AC_CONFIG_AUX_DIR([auxdir])
 AM_INIT_AUTOMAKE([subdir-objects tar-ustar])
 AC_CONFIG_SRCDIR([main.cpp])
@@ -11,6 +11,26 @@ AC_CONFIG_MACRO_DIRS([m4])
 LT_INIT([disable-shared])
 
 m4_pattern_forbid([^PKG_])
+
+# Enable exception backtrace option
+AC_ARG_ENABLE([exception-backtrace],
+    [AS_HELP_STRING([--disable-exception-backtrace],
+        [Disable exception backtrace in exceptions (enabled by default)])],
+    [case "${enable_exception_backtrace}" in
+        yes|no) ;;
+        *) AC_MSG_ERROR([invalid value for --enable-exception-backtrace: ${enable_exception_backtrace}]) ;;
+    esac],
+    [enable_exception_backtrace=yes]) # Default to "yes"
+
+AM_CONDITIONAL([ENABLE_EXCEPTION_BACKTRACE], [test "x$enable_exception_backtrace" = "xyes"])
+AC_SUBST([ENABLE_EXCEPTION_BACKTRACE], [$enable_exception_backtrace])
+
+# Define a macro in config.h
+if test "x$enable_exception_backtrace" = "xyes"; then
+    AC_DEFINE([ENABLE_EXCEPTION_BACKTRACE], [1], [Define if exception backtraces are enabled])
+else
+    AC_DEFINE([ENABLE_EXCEPTION_BACKTRACE], [0], [Define if exception backtraces are enabled])
+fi
 
 # Checks for programs.
 # If CXXFLAGS is unset, remove the -g
@@ -29,7 +49,7 @@ AS_IF([test ${clboss_set_CXXFLAGS}], [
 		CXXFLAGS=""
 	])
 ])
-AX_CXX_COMPILE_STDCXX_11
+AX_CXX_COMPILE_STDCXX([17])
 AC_LANG([C++])
 
 AC_PROG_AWK
@@ -49,6 +69,22 @@ PKG_CHECK_MODULES([SQLITE3], [sqlite3 >= 3.0.0])
 AX_LIB_CURL(,[:],[
 	AC_MSG_ERROR([Need libcurl.])
 ])
+
+# Check for libunwind
+PKG_CHECK_MODULES([LIBUNWIND], [libunwind], [
+  AC_DEFINE([HAVE_LIBUNWIND], [1], [Define if libunwind is available])
+], [
+  AC_MSG_ERROR([libunwind is required but not found])
+])
+
+# https://github.com/ZmnSCPxj/clboss/issues/245
+case "$host_os" in
+  *alpine*)
+    LDFLAGS="$LDFLAGS -lexecinfo"
+    ;;
+esac
+
+AC_SUBST(LDFLAGS)
 
 # Checks for header files.
 
@@ -95,6 +131,21 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 ]])], [ #then
 	AC_DEFINE([HAVE_GMTIME_R], [1],
 		  [Define to 1 if you have a gmtime_r function.])
+	AC_MSG_RESULT([yes])
+], [ #else
+	AC_MSG_RESULT([no])
+])
+
+# Check for getprogname()
+AC_MSG_CHECKING([for getprogname])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include<stdlib.h>
+]], [[
+	const char* p = getprogname();
+	(void)p; // avoid warning about set but unused variable
+]])], [ #then
+	AC_DEFINE([HAVE_GETPROGNAME], [1],
+		  [Define to 1 if you have a getprogname function.])
 	AC_MSG_RESULT([yes])
 ], [ #else
 	AC_MSG_RESULT([no])
