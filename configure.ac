@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([clboss], [0.14.1], [ken@bonsai.com])
+AC_INIT([clboss], [0.16.0], [ken@bonsai.com])
 AC_CONFIG_AUX_DIR([auxdir])
 AM_INIT_AUTOMAKE([subdir-objects tar-ustar])
 AC_CONFIG_SRCDIR([main.cpp])
@@ -49,7 +49,7 @@ AS_IF([test ${clboss_set_CXXFLAGS}], [
 		CXXFLAGS=""
 	])
 ])
-AX_CXX_COMPILE_STDCXX([17])
+AX_CXX_COMPILE_STDCXX([20], , [mandatory])
 AC_LANG([C++])
 
 AC_PROG_AWK
@@ -78,8 +78,9 @@ PKG_CHECK_MODULES([LIBUNWIND], [libunwind], [
 ])
 
 # https://github.com/ZmnSCPxj/clboss/issues/245
+# Alpine and FreeBSD need explicit -lexecinfo for backtrace_symbols
 case "$host_os" in
-  *alpine*)
+  *alpine*|*freebsd*)
     LDFLAGS="$LDFLAGS -lexecinfo"
     ;;
 esac

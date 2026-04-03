@@ -1,3 +1,9 @@
+> ⚠️ **Note about repository ownership**
+>
+> This repository was originally created and maintained by [ZmnSCPxj](https://github.com/ZmnSCPxj).
+> In 2025, the top-level CLBOSS repository was transferred to
+> [Ken Sedgwick](https://github.com/ksedgwic), who is the current maintainer.
+
 CLBOSS The Core Lightning Node Manager
 ===================================
 
@@ -31,6 +37,14 @@ You can read more information about CLBOSS here:
 https://zmnscpxj.github.io/clboss/index.html
 As of this release, this page is a work in progress, stay tuned
 for updates!
+
+## Project ownership and maintenance
+
+This repository was originally created and maintained by [ZmnSCPxj](https://github.com/ZmnSCPxj).
+In 2025, ownership of the top-level CLBOSS repository was transferred to
+[Ken Sedgwick](https://github.com/ksedgwic), who is the current maintainer.
+
+All history and prior contributions remain credited to their original authors.
 
 Dependencies
 ------------
@@ -98,6 +112,19 @@ You will then need to modify your `lightning.conf` to add the
 path to `which clboss` as a `plugin` or `important-plugin` of
 `lightningd`.
 
+For production rollouts/quick rollback, you can install a versioned
+binary and keep `clboss` as a symlink you can switch:
+
+    sudo make install-versioned
+
+This installs `clboss-<git-describe>` (e.g.
+`/usr/local/bin/clboss-v0.15.1-47-g9b61c28`) and updates the symlink
+at `/usr/local/bin/clboss` (or whatever `--prefix` you configured).
+
+To roll back (or switch forward) after multiple installs replace the
+`/usr/local/bin/clboss` symbolic link with one pointing to the
+desired version.
+
 Usually, autotools-based projects like CLBOSS will default
 to using `-g -O2` for compilation flags, where `-g` causes
 the compiler to include debug info.
@@ -108,6 +135,7 @@ override the CLBOSS default via `CXXFLAGS`, such as:
 
     ./configure CXXFLAGS="-g -O2"  # or whatever flags you like
     ./configure CXXFLAGS="-g -Og"  # recommended for debugging
+    ./configure CXXFLAGS="-O1 -g -fsanitize=address -fno-omit-frame-pointer" LDFLAGS="-fsanitize=address" # useful for debugging heap issues
 
 And if your build machine has more than 1 core, you probably
 want to pass in the `-j` option to `make`, too:
@@ -167,6 +195,38 @@ nix develop
 autoreconf -i
 ./configure && make
 ```
+
+### Developer helpers
+
+To generate an IDE-friendly `compile_commands.json`, run `make
+compile_commands.json` (requires `bear`). The file is git-ignored;
+rerun the target whenever your build flags or sources change.
+
+### Coverage
+
+To run the unit tests with code coverage instrumentation:
+
+    make coverage
+
+If `lcov`/`genhtml` are available, this writes `coverage.info` and an HTML report
+at `coverage-html/index.html`. To generate the report from an existing
+coverage-instrumented build, run:
+
+    make coverage-report
+
+If you want debug symbols as well, override the coverage flags, e.g.:
+
+    make COVERAGE_CXXFLAGS="-Og -g --coverage" COVERAGE_CFLAGS="-Og -g --coverage" coverage
+
+To clean coverage outputs (`coverage.info`, `coverage-html/`, and `*.gcda/*.gcno`
+files):
+
+    make coverage-clean
+
+Installing `lcov`:
+* Fedora: `sudo dnf install lcov`
+* Debian/Ubuntu: `sudo apt-get install lcov`
+* Or via Nix (without installing system-wide): `nix shell nixpkgs#lcov --command make coverage-report`
 
 ### Contributed Utilities
 
@@ -235,7 +295,7 @@ be `low` or `high`.
 ### `clboss-externpay`
 
 If CLBOSS is managing a node for a custodial service, then you should
-`decodepay` the invoices provided by clients whose funds you are
+`decode` the invoices provided by clients whose funds you are
 custodying, and pass the `payment_hash` as the sole argument to
 `clboss-externpay`.
 
@@ -331,7 +391,7 @@ which has two parameters, `nodeid` and `tags`.
     lightning-cli clboss-unmanage ${NODEID} lnfee
 
 After the above command, you can set the fee manually with
-the normal Core Lightning `setchannelfee` command.
+the normal Core Lightning `setchannel` command.
 
 The second parameter, `tags`, is a string containing a
 comma-separated set of unmanagement tags.
@@ -374,36 +434,6 @@ This recording only started in 0.11D.
 Earlier versions do not record, so if you have been using CLBOSS
 before 0.11D, then historical offchain-to-onchain swaps are not
 reported.
-
-### `clboss-recent-earnings`, `clboss-earnings-history`
-
-As of CLBOSS version [TBD], earnings and expenditures are tracked on a daily basis.
-The following commands have been added to observe the new data:
-
-- **`clboss-recent-earnings`**:
-  - **Purpose**: Returns a data structure equivalent to the
-    `offchain_earnings_tracker` collection in `clboss-status`, but
-    only includes recent earnings and expenditures.
-  - **Arguments**:
-    - `days` (optional): Specifies the number of days to include in
-      the report. Defaults to a fortnight (14 days) if not provided.
-
-- **`clboss-earnings-history`**:
-  - **Purpose**: Provides a daily breakdown of earnings and expenditures.
-  - **Arguments**:
-    - `nodeid` (optional): Limits the history to a particular node if
-      provided. Without this argument, the values are accumulated
-      across all peers.
-  - **Output**: 
-    - The history consists of an array of records showing the earnings
-      and expenditures for each day.
-    - The history includes an initial record with a time value of 0,
-      which contains any legacy earnings and expenditures collected by
-      CLBOSS before daily tracking was implemented.
-
-These commands enhance the tracking of financial metrics, allowing for
-detailed and recent analysis of earnings and expenditures on a daily
-basis.
 
 ### `--clboss-min-onchain=<satoshis>`
 
@@ -488,6 +518,20 @@ Limits the fee CLBOSS will pay for a single internal rebalance.
 The value is in parts-per-million (PPM) of the amount being moved.
 The default is `1000` (0.1% of the amount). Both the
 JitRebalancer and EarningsRebalancer honor this limit.
+### `--clboss-min-nodes-to-process=<number>`
+
+Sets the minimum number of nodes that CLBOSS must know about before it
+will try to propose channels to popular nodes.  Pass this option to
+`lightningd` to override the default threshold.
+
+The defaults depend on the network:
+
+* Bitcoin: 800
+* Testnet: 100
+* Other networks: 10
+
+Setting the option to `-1` reverts to the built-in network-specific
+default.
 
 ### `clboss-recent-earnings`, `clboss-earnings-history`
 
@@ -507,7 +551,8 @@ The following commands have been added to observe the new data:
   - **Arguments**:
     - `nodeid` (optional): Limits the history to a particular node if
       provided. Without this argument, the history is accumulated
-      across all nodes.
+      across all peers. Use `all` to return per-node buckets; each
+      history entry then includes a `node` field.
   - **Output**: 
     - The history consists of an array of records showing the earnings
       and expenditures for each day.
@@ -518,3 +563,4 @@ The following commands have been added to observe the new data:
 These commands enhance the tracking of financial metrics, allowing for
 detailed and recent analysis of earnings and expenditures on a daily
 basis.
+

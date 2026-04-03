@@ -4,13 +4,117 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [next rev]
+## [0.16.0] - 2026-03-02: "Darkness on the Edge of the Mempool"
 
 ### Added
 
-- **RPC Enhancements**:
-  - Added the `clboss-feerates` command which reports the current fee
-    thresholds and judgment.
+- **Internal**:
+  - Fee Monitor module records per-channel fee-setting context and
+    statistics into SQLite (`feemon_peers`, `feemon_change_events`
+    tables). ([#296])
+  - C++20 coroutine support for cleaner async code. ([#272])
+- **RPC**:
+  - `clboss-feemon-history`: returns per-peer fee modifier history
+    (baseline, size/balance/price multipliers, earnings). ([#296])
+  - `clboss-feemon-peers`: returns peer node IDs with fee monitor data,
+    with optional time window filtering. ([#296])
+  - `clboss-earnings-history`: added "all" (by-node) aggregation mode.
+    ([#292])
+- **Contrib scripts**:
+  - `fee-log-parser`: parses DEBUG-level logs into SQLite. ([#291])
+  - `plot-fees`: plots per-peer fee time series. ([#291])
+  - `plot-aggregate`: plots aggregate percentile summaries across
+    peers. ([#291])
+  - `plot-balance-price`, `plot-size-balance`, `plot-size-price`: fee
+    modifier analysis visualizations. ([#295])
+  - `feemon-validate`: validates fee monitor data integrity. ([#296])
+- **Build**:
+  - `install-versioned` Makefile target for fast roll-forward/roll-back.
+    ([#289])
+  - Code coverage reporting in CI. ([#283])
+  - Clang C++20 build job in CI. ([#307])
+  - Nix flake packaging improvements. ([#285])
+
+### Changed
+
+- `InvoicePayer` now uses CLN's native `decode` RPC instead of manual
+  parsing. ([#301])
+
+### Fixed
+
+- `fundpsbt` deprecated integer argument handling. ([#288])
+- `Initiator` module handles both old and new `listconfigs` RPC output
+  formats. ([#300])
+- Backtrace capture disabled under valgrind to fix `make check`
+  failures. ([#279])
+- Fixed duplicate earnings report sections in README. ([#277])
+- Fixed outdated `setchannelfee` reference to `setchannel` in README.
+  ([#290])
+- Replaced deprecated `std::result_of` with `std::invoke_result_t` for
+  C++20 compatibility (fixes build on FreeBSD 14+ / clang 18). ([#305])
+- Added missing `#include <cstdint>` for clang strict mode. ([#307])
+- Added `-lexecinfo` for FreeBSD in `configure.ac`. ([#307])
+- Fixed uninitialized `ReservoirSampler::wsum` warning at `-O2`.
+- Fixed crash on non-SRV DNS records (e.g. SOA) in `parse_dig_srv()`;
+  removed defunct DNS seeds `lseed.bitcoinstats.com` and
+  `lseed.darosior.ninja`. ([#309])
+
+### Credits
+
+Many thanks (!!) to contributors to this release:
+- @JosephGoulden
+- @lduchosal
+- @raphaellueckl
+- @smolting
+- @tank-welder
+- @ZmnSCPxj
+
+## [0.15.1] - 2025-10-07: "Dancing in the Dark Liquidity"
+
+### Fixed
+
+- Fixed the release build CI workflow
+
+## [0.15.0] - 2025-10-07: "Dancing in the Dark Liquidity"
+
+### Added
+
+- **RPC**:
+  - Added the `clboss-feerates` command to report percentile thresholds,
+    last observed feerate (perkw), and the current low/high judgment.
+- **Configuration**:
+  - Added `--clboss-min-nodes-to-process` to control how many nodes
+    CLBOSS must know before proposing channels. Defaults: 800 (Bitcoin),
+    100 (Testnet), 10 (other). Setting `-1` uses network-specific defaults.
+  - Added `--clboss-max-rebalance-fee-ppm` to cap the fee for a single
+    internal rebalance (honored by both JitRebalancer and
+    EarningsRebalancer). Default is 1000 ppm (0.1%).
+- **Contrib scripts**:
+  - New `clboss-forwarding-stats` script.
+  - New `recently-closed` helper.
+  - New `sys_stats_report` to generate heartbeat status reports and
+    append metrics (e.g., `utxo_msat`, `avail_msat`, `current_msat`,
+    `avail_out`, `utxo_amount`) to a `STATS` file; includes a baseline
+    checksum and appends fee data from `clboss-feerates`.
+  - `clboss-earnings-history`: added `--csv-file`, `--graph-file` and
+    `--bucket` (day|week|fortnight|month|quarter); estimates the last
+    bucket based on remaining time.
+  - `clboss-routing-stats`: added `--days` to limit the time window.
+- **Docs**:
+  - Updated diagrams (rebalancer flow, channel balancing orientation) and
+    README/contrib docs; refreshed dependencies for contrib tooling.
+
+### Changed
+
+- Reduced the default `--clboss-max-rebalance-fee-ppm` from 5000 ppm
+  (0.5%) to 1000 ppm (0.1%).
+
+### Fixed
+
+- `ChannelFinderByPopularity`: ignore our own node when sampling and
+  enumerating peers ([#266]).
+- Swaps: avoid blank addresses in the cache and clean any that slipped
+  in; validate the initial Boltz claim destination address.
 
 ## [0.14.1] - 2024-12-05: "Hand at the Grindstone"
 

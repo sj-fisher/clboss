@@ -149,6 +149,8 @@ libclboss_la_SOURCES = \
 	Boss/Mod/EarningsTracker.hpp \
 	Boss/Mod/FeeModderByBalance.cpp \
 	Boss/Mod/FeeModderByBalance.hpp \
+	Boss/Mod/FeeMonitor.cpp \
+	Boss/Mod/FeeMonitor.hpp \
 	Boss/Mod/FeeModderByPriceTheory.cpp \
 	Boss/Mod/FeeModderByPriceTheory.hpp \
 	Boss/Mod/FeeModderBySize.cpp \
@@ -291,6 +293,10 @@ libclboss_la_SOURCES = \
 	Boss/Msg/CommandRequest.hpp \
 	Boss/Msg/CommandResponse.hpp \
 	Boss/Msg/DbResource.hpp \
+	Boss/Msg/MonitorFeeByBalance.hpp \
+	Boss/Msg/MonitorFeeByTheory.hpp \
+	Boss/Msg/MonitorFeeSetChannel.hpp \
+	Boss/Msg/MonitorFeeBySize.hpp \
 	Boss/Msg/EndOfOptions.hpp \
 	Boss/Msg/ForwardFee.hpp \
 	Boss/Msg/Init.hpp \
@@ -406,6 +412,8 @@ libclboss_la_SOURCES = \
 	Ev/ThreadPool.hpp \
 	Ev/concurrent.cpp \
 	Ev/concurrent.hpp \
+	Ev/coroutine.cpp \
+	Ev/coroutine.hpp \
 	Ev/foreach.hpp \
 	Ev/map.hpp \
 	Ev/memoize.hpp \
@@ -597,10 +605,13 @@ TESTS = \
 	tests/boss/test_channelcreator_reprioritizer \
 	tests/boss/test_earningsrebalancer \
 	tests/boss/test_earningstracker \
+	tests/boss/test_feemon_history \
 	tests/boss/test_feemodderbypricetheory \
 	tests/boss/test_forwardfeemonitor \
 	tests/boss/test_getmanifest \
+	tests/boss/test_invoicepayer_decodepay \
 	tests/boss/test_initialrebalancer \
+	tests/boss/test_initiator_listconfigs_proxy \
 	tests/boss/test_jitrebalancer \
 	tests/boss/test_needsconnectsolicitor \
 	tests/boss/test_onchainfeemonitor_samples_init \
@@ -626,6 +637,10 @@ TESTS = \
 	tests/ev/test_map \
 	tests/ev/test_memoize \
 	tests/ev/test_plus \
+	tests/ev/test_coroutine_cleanup \
+	tests/ev/test_coroutine_unattached_leak \
+	tests/ev/test_coroutine_attached_before_finalize \
+	tests/ev/test_coroutine_io_gone_before_finalize \
 	tests/ev/test_runcmd \
 	tests/ev/test_semaphore \
 	tests/ev/test_throw_in_then \
@@ -683,6 +698,111 @@ create-tarball: create-tarball.in Makefile
 
 BUILT_SOURCES = commit_hash.h
 
+# Developer helper: regenerate compile_commands.json with bear.
+.PHONY: compile_commands.json bear-compile-commands
+compile_commands.json bear-compile-commands:
+	@if ! command -v bear >/dev/null 2>&1; then \
+		echo "bear not found; install it to generate compile_commands.json." >&2; \
+		exit 1; \
+	fi
+	rm -f compile_commands.json
+	$(MAKE) clean
+	bear --output compile_commands.json -- $(MAKE) all
+
+.PHONY: coverage coverage-clean coverage-report
+COVERAGE_CFLAGS ?= -Og --coverage
+COVERAGE_CXXFLAGS ?= -Og --coverage
+COVERAGE_LDFLAGS ?= --coverage
+LCOV ?= lcov
+GENHTML ?= genhtml
+GCOV ?= gcov
+
+coverage-clean:
+	rm -f coverage.info
+	rm -rf coverage-html
+	find . \( \
+		-name '*.gcda' -o \
+		-name '*.gcno' -o \
+		-name '*.gcov' -o \
+		-name '*.gcov.json.gz' \
+	\) -exec rm -f {} +
+
+coverage:
+	$(MAKE) coverage-clean
+	$(MAKE) distclean || true
+	autoreconf -fi
+	./configure \
+		--disable-valgrind \
+		CFLAGS='$(COVERAGE_CFLAGS)' \
+		CXXFLAGS='$(COVERAGE_CXXFLAGS)' \
+		LDFLAGS='$(COVERAGE_LDFLAGS)'
+	$(MAKE) -j$$(nproc)
+	$(MAKE) -j$$(nproc) check-TESTS
+	@if command -v "$(LCOV)" >/dev/null 2>&1; then \
+		$(MAKE) coverage-report; \
+	else \
+		echo "$(LCOV) not found; skipping coverage report." >&2; \
+		echo "Install it (e.g. apt install lcov) or run: nix shell nixpkgs#lcov --command make coverage-report" >&2; \
+	fi
+
+coverage-report:
+	@if ! command -v $(LCOV) >/dev/null 2>&1; then \
+		echo "$(LCOV) not found; install it (e.g. apt install lcov) or run via: nix shell nixpkgs#lcov" >&2; \
+		exit 1; \
+	fi
+	$(LCOV) --gcov-tool "$(GCOV)" --capture \
+		--no-external \
+		--ignore-errors source \
+		--directory . \
+		--base-directory "$(abs_top_srcdir)" \
+		--output-file coverage.info \
+	|| $(LCOV) --gcov-tool "$(GCOV)" --capture \
+		--no-external \
+		--ignore-errors inconsistent,source \
+		--directory . \
+		--base-directory "$(abs_top_srcdir)" \
+		--output-file coverage.info \
+	|| $(LCOV) --gcov-tool "$(GCOV)" --capture \
+		--no-external \
+		--directory . \
+		--base-directory "$(abs_top_srcdir)" \
+		--output-file coverage.info
+	$(LCOV) --remove coverage.info \
+		'*/external/*' \
+		'*/tests/*' \
+		'*/crypto/*' \
+		'*/src/*' \
+		'*/basicsecure.c' \
+		'/usr/*' \
+		'/nix/store/*' \
+		--ignore-errors unused \
+		--output-file coverage.info \
+	|| $(LCOV) --remove coverage.info \
+		'*/external/*' \
+		'*/tests/*' \
+		'*/crypto/*' \
+		'*/src/*' \
+		'*/basicsecure.c' \
+		'/usr/*' \
+		'/nix/store/*' \
+		--output-file coverage.info
+	$(LCOV) --summary coverage.info
+	$(GENHTML) coverage.info \
+		--filter missing \
+		--ignore-errors inconsistent,corrupt \
+		--legend \
+		--title "clboss coverage" \
+		--output-directory coverage-html \
+	|| $(GENHTML) coverage.info \
+		--ignore-errors source \
+		--legend \
+		--title "clboss coverage" \
+		--output-directory coverage-html \
+	|| $(GENHTML) coverage.info \
+		--legend \
+		--title "clboss coverage" \
+		--output-directory coverage-html
+
 commit_hash.h: FORCE
 	@if git -C $(srcdir) rev-parse --is-inside-work-tree > /dev/null 2>&1; then \
 		CURRENT_HASH="$$(git -C $(srcdir) rev-parse HEAD)"; \
@@ -711,6 +831,26 @@ dist-hook:
 
 FORCE:
 
-.PHONY: FORCE
+.PHONY: FORCE install-versioned
+
+CLBOSS_VERSIONED_SYMLINK ?= clboss
+CLBOSS_VERSIONED_DESCRIBE ?=
+
+install-versioned: all
+	@set -e; \
+	describe="$(CLBOSS_VERSIONED_DESCRIBE)"; \
+	if [ -z "$$describe" ]; then \
+		if git -C "$(srcdir)" rev-parse --is-inside-work-tree > /dev/null 2>&1; then \
+			describe="$$(git -C "$(srcdir)" describe --tags --always --dirty)"; \
+		else \
+			describe="v$(PACKAGE_VERSION)"; \
+		fi; \
+	fi; \
+	bindir_path="$(DESTDIR)$(bindir)"; \
+	$(MKDIR_P) "$$bindir_path"; \
+	$(INSTALL_PROGRAM) clboss "$$bindir_path/clboss-$$describe"; \
+	rm -f "$$bindir_path/$(CLBOSS_VERSIONED_SYMLINK)"; \
+	ln -s "clboss-$$describe" "$$bindir_path/$(CLBOSS_VERSIONED_SYMLINK)"; \
+	echo "Installed $$bindir_path/clboss-$$describe and set $$bindir_path/$(CLBOSS_VERSIONED_SYMLINK)"
 
 clboss libclboss.la: $(BUILT_SOURCES)

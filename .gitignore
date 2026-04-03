@@ -15,7 +15,8 @@ config.h.in
 config.status
 config.h
 configure
-contrib/clboss/__pycache__/
+contrib/**/__pycache__/
+compile_commands.json
 *.log
 *.m4
 !external/libsodium/m4/*.m4
@@ -25,7 +26,8 @@ INSTALL
 Makefile
 TAGS
 autom4te*
-m4
+m4/*.m4
+!/m4/m4_ax_cxx_compile_stdcxx.m4
 !external/libsodium/m4
 !external/secp256k1/build-aux/m4
 stamp-*
@@ -33,8 +35,18 @@ auxdir
 .deps
 .dirstamp
 .libs
+.cache
 
 test_*
 !test_*.cpp
 !test_*.c
 /commit_hash.h
+
+coverage*.info
+coverage-html/
+*.gcda
+*.gcno
+*.gcov
+*.gcov.json.gz
+
+result
